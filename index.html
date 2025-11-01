@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Castle: Make & Play — Prototype</title>
+  <style>
+    :root{
+      --bg:#f7f9fc; --card:#ffffff; --muted:#9aa6b2; --accent:#8fc1ff; --accent-2:#ffd1e0;
+      --radius:12px; font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,var(--bg),#eef6ff);color:#21323a}
+    header{display:flex;align-items:center;gap:16px;padding:18px 22px}
+    .logo{background:var(--card);padding:10px 14px;border-radius:10px;box-shadow:0 6px 14px rgba(34,50,80,.06);font-weight:700}
+    .topnav{margin-left:auto;display:flex;gap:10px}
+    .btn{background:var(--card);border-radius:10px;padding:8px 12px;border:1px solid rgba(0,0,0,.04);cursor:pointer}
+    .container{display:grid;grid-template-columns:260px 1fr 320px;gap:18px;padding:18px}
+    .panel{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:0 6px 18px rgba(25,40,60,.05)}
+    .panel h3{margin:0 0 8px 0;font-size:15px}
+
+    /* Canvas */
+    #canvas{background:linear-gradient(180deg,#ffffff,#f3fbff);min-height:580px;border-radius:10px;border:1px dashed rgba(0,0,0,.04);position:relative;overflow:hidden}
+    .canvas-top{display:flex;justify-content:space-between;align-items:center;padding:12px}
+    .toolbar{display:flex;gap:8px}
+
+    /* Objects list */
+    .obj-list{display:flex;flex-direction:column;gap:8px}
+    .obj-item{padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,.04);display:flex;justify-content:space-between;align-items:center}
+
+    /* Rules */
+    .rules{display:flex;flex-direction:column;gap:8px}
+    .rule-card{padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,.04);background:linear-gradient(180deg,#ffffff,#fbfdff)}
+    select,input{padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,.06);outline:none}
+    .rule-row{display:flex;gap:8px;align-items:center}
+    .small{font-size:12px;color:var(--muted)}
+
+    /* Game objects on canvas */
+    .game-obj{position:absolute;padding:6px 8px;border-radius:8px;cursor:pointer;user-select:none}
+    .text-box{background:rgba(0,0,0,0.03);}
+    .rect{width:100px;height:60px;background:var(--accent);}
+
+    footer{padding:12px 22px;color:var(--muted);font-size:13px}
+
+    .muted{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Castle — Prototype</div>
+    <div class="muted">Make & Play • Rule-based editor</div>
+    <div class="topnav">
+      <button class="btn" id="saveBtn">Save</button>
+      <button class="btn" id="loadBtn">Load</button>
+      <button class="btn" id="runBtn">Run</button>
+      <button class="btn" id="stopBtn">Stop</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Left: Objects -->
+    <aside class="panel">
+      <h3>Objects</h3>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select id="addType">
+          <option value="text">Text Box</option>
+          <option value="rect">Rectangle</option>
+          <option value="circle">Circle</option>
+          <option value="sprite">Sprite (image)</option>
+        </select>
+        <button class="btn" id="addObjBtn">Add</button>
+      </div>
+
+      <div class="obj-list" id="objectList"></div>
+
+      <hr style="margin:12px 0;border:none;border-top:1px solid rgba(0,0,0,.04)" />
+      <div class="small">Tip: click an object on the canvas to select it for rules.</div>
+    </aside>
+
+    <!-- Center: Canvas -->
+    <main>
+      <div class="panel">
+        <div class="canvas-top">
+          <div><strong>Scene</strong> <span class="small">(click objects to select)</span></div>
+          <div class="toolbar">
+            <div class="small" id="selectedLabel">Selected: <em>none</em></div>
+          </div>
+        </div>
+        <div id="canvas" tabindex="0"></div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <div class="panel" style="flex:1">
+          <h3>Preview / Console</h3>
+          <div id="console" style="min-height:64px;padding:8px;background:#fbfdff;border-radius:8px;font-family:monospace;color:#2b4050"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right: Rules -->
+    <aside class="panel">
+      <h3>Rules</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="rule-card">
+          <div class="rule-row">
+            <label class="small">Trigger</label>
+            <select id="triggerSelect">
+              <option value="sceneCreated">When scene created</option>
+              <option value="objectCreated">When object created</option>
+              <option value="objectClicked">When object clicked</option>
+            </select>
+          </div>
+
+          <div class="rule-row" style="margin-top:8px;">
+            <label class="small">Target</label>
+            <select id="targetSelect"><option value="scene">Scene</option></select>
+          </div>
+
+          <div class="rule-row" style="margin-top:8px;">
+            <label class="small">Action</label>
+            <select id="actionSelect">
+              <option value="createText">create text box</option>
+              <option value="createRect">create rectangle</option>
+              <option value="createCircle">create circle</option>
+              <option value="setColor">set color</option>
+              <option value="show">show</option>
+              <option value="hide">hide</option>
+            </select>
+          </div>
+
+          <div class="rule-row" style="margin-top:8px;align-items:center">
+            <label class="small">Param</label>
+            <select id="paramSelect">
+              <option value="Hello">Hello</option>
+              <option value="Hi">Hi</option>
+              <option value="Welcome">Welcome</option>
+              <option value="Good job">Good job</option>
+              <option value="CUSTOM">Custom…</option>
+            </select>
+            <input id="colorInput" type="color" value="#ff8fb3" style="display:none;margin-left:6px" />
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn" id="addRuleBtn">Add rule</button>
+            <button class="btn" id="clearRulesBtn">Clear</button>
+          </div>
+        </div>
+
+        <div id="rulesList" class="rules"></div>
+      </div>
+
+      <hr style="margin:8px 0;border:none;border-top:1px solid rgba(0,0,0,.04)" />
+      <div class="small">Events: color palette challenges can be simulated by creating rules that set colors on created objects.</div>
+    </aside>
+  </div>
+
+  <footer>Prototype — rule-based editor. Save/Load uses localStorage. Clicking an object selects it; use "When object clicked" to trigger actions.</footer>
+
+  <script>
+    // Simple prototype data stores
+    let objects = []; // {id, type, x, y, elId, props: {text,color}}
+    let rules = [];   // {id, trigger, targetId, action, param}
+    let selected = null; // selected object id
+    let running = false;
+
+    const canvas = document.getElementById('canvas');
+    const objectList = document.getElementById('objectList');
+    const rulesList = document.getElementById('rulesList');
+    const selectedLabel = document.getElementById('selectedLabel');
+    const targetSelect = document.getElementById('targetSelect');
+    const paramSelect = document.getElementById('paramSelect');
+    const colorInput = document.getElementById('colorInput');
+
+    function uid(prefix='id') { return prefix+Math.random().toString(36).slice(2,9)}
+
+    function addObject(type){
+      const id = uid('obj_');
+      const obj = {id,type,x:40 + objects.length*20,y:40 + objects.length*20,props:{text:'Hello',color:'#ffd1e0'}};
+      objects.push(obj);
+      renderObjects();
+      refreshObjectSelectors();
+      log('Added '+type+' '+id);
+    }
+
+    function renderObjects(){
+      canvas.innerHTML = '';
+      objects.forEach(o => {
+        const el = document.createElement('div');
+        el.className = 'game-obj '+(o.type==='text'?'text-box':'');
+        el.id = o.id;
+        el.style.left = o.x+'px';
+        el.style.top = o.y+'px';
+        el.style.minWidth = 'auto';
+        el.style.padding = '8px 10px';
+        el.style.border = '1px solid rgba(0,0,0,.03)';
+        el.style.background = o.type==='rect'? o.props.color || 'var(--accent)' : 'transparent';
+        el.style.borderRadius = '8px';
+        el.style.cursor = 'pointer';
+
+        if(o.type==='text'){
+          el.innerText = o.props.text || 'Text';
+          el.classList.add('text-box');
+          el.style.background = 'rgba(255,255,255,0.9)';
+          el.style.boxShadow = '0 4px 8px rgba(20,40,60,.04)';
+        } else if(o.type==='rect'){
+          el.style.width = '120px'; el.style.height = '72px'; el.innerText = '';
+        } else if(o.type==='circle'){
+          el.style.width = '72px'; el.style.height = '72px'; el.style.borderRadius = '50%'; el.innerText = '';
+        } else if(o.type==='sprite'){
+          el.style.width = '64px'; el.style.height = '64px'; el.style.background = 'linear-gradient(90deg,#fff,#eee)'; el.innerText = '';
+        }
+
+        // click selection
+        el.addEventListener('click', (ev)=>{ ev.stopPropagation(); selectObject(o.id)});
+
+        // add listener for objectClicked trigger
+        el.addEventListener('click', ()=>{
+          if(running){ runTrigger('objectClicked', o.id); }
+        });
+
+        canvas.appendChild(el);
+      });
+    }
+
+    function refreshObjectSelectors(){
+      objectList.innerHTML = '';
+      // update targetSelect
+      targetSelect.innerHTML = '<option value="scene">Scene</option>' + objects.map(o=>`<option value="${o.id}">${o.type} — ${o.id}</option>`).join('');
+      // fill object list
+      objects.forEach(o=>{
+        const div = document.createElement('div');
+        div.className = 'obj-item';
+        div.innerHTML = `<div>${o.type} <span class="small">${o.id}</span></div><div><button class=\"btn\" data-id=\"${o.id}\">Delete</button></div>`;
+        objectList.appendChild(div);
+        div.querySelector('button').addEventListener('click', ()=>{ deleteObject(o.id)});
+      });
+    }
+
+    function deleteObject(id){ objects = objects.filter(o=>o.id!==id); renderObjects(); refreshObjectSelectors(); log('Deleted '+id); if(selected===id) { selected=null; updateSelectedLabel(); } }
+
+    function selectObject(id){ selected = id; updateSelectedLabel(); }
+    function updateSelectedLabel(){ selectedLabel.innerHTML = 'Selected: <em>' + (selected||'none') + '</em>'; }
+
+    function addRule(){
+      const trigger = document.getElementById('triggerSelect').value;
+      const targetId = document.getElementById('targetSelect').value;
+      const action = document.getElementById('actionSelect').value;
+      let param = document.getElementById('paramSelect').value;
+      if(param === 'CUSTOM'){
+        param = prompt('Enter custom text for param:','Hello') || 'Hello';
+      }
+      if(action === 'setColor'){
+        param = colorInput.value;
+      }
+      const r = {id:uid('rule_'), trigger, targetId, action, param};
+      rules.push(r); renderRules(); log('Added rule '+r.id);
+    }
+
+    function renderRules(){
+      rulesList.innerHTML = '';
+      rules.forEach(r=>{
+        const el = document.createElement('div'); el.className='rule-card';
+        el.innerHTML = `<div style=\"display:flex;justify-content:space-between;align-items:center\"><div><strong>${r.trigger}</strong> → <em>${r.action}</em></div><div><button class=\"btn\" data-id=\"${r.id}\">Del</button></div></div><div class=\"small\">target: ${r.targetId} • param: ${r.param}</div>`;
+        rulesList.appendChild(el);
+        el.querySelector('button').addEventListener('click', ()=>{ rules = rules.filter(x=>x.id!==r.id); renderRules(); })
+      });
+    }
+
+    function run(){
+      running = true; log('Running...');
+      // run sceneCreated triggers
+      rules.filter(r=>r.trigger==='sceneCreated').forEach(r => executeAction(r.action, r.param, r.targetId));
+      // run objectCreated triggers for objects that exist
+      objects.forEach(o=>{
+        rules.filter(r=>r.trigger==='objectCreated' && (r.targetId==='scene' || r.targetId===o.id)).forEach(r=>executeAction(r.action, r.param, r.targetId));
+      });
+    }
+
+    function stop(){ running = false; log('Stopped'); }
+
+    function runTrigger(triggerName, targetObjId){
+      rules.filter(r=>r.trigger===triggerName && (r.targetId==='scene' || r.targetId===targetObjId)).forEach(r=>executeAction(r.action, r.param, r.targetId));
+    }
+
+    function executeAction(action, param, targetId){
+      log('Action: '+action+' param:'+param+' target:'+targetId);
+      if(action==='createText'){
+        const id = uid('obj_');
+        const obj = {id,type:'text',x:50,y:50,props:{text:param,color:'#fff'}};
+        objects.push(obj); renderObjects(); refreshObjectSelectors();
+      } else if(action==='createRect'){
+        const id = uid('obj_');
+        const obj = {id,type:'rect',x:60,y:60,props:{color:param||'#8fc1ff'}};
+        objects.push(obj); renderObjects(); refreshObjectSelectors();
+      } else if(action==='createCircle'){
+        const id = uid('obj_');
+        const obj = {id,type:'circle',x:80,y:80,props:{color:param||'#ffd1e0'}};
+        objects.push(obj); renderObjects(); refreshObjectSelectors();
+      } else if(action==='setColor'){
+        // set color on target
+        const target = objects.find(o=>o.id===targetId);
+        if(target){ target.props.color = param; renderObjects(); }
+      } else if(action==='show'){
+        const target = objects.find(o=>o.id===targetId); if(target){ /* nothing for now */ }
+      } else if(action==='hide'){
+        const target = objects.find(o=>o.id===targetId); if(target){ /* nothing for now */ }
+      }
+    }
+
+    function log(msg){ const c = document.getElementById('console'); c.innerText = msg + '\n' + c.innerText; }
+
+    // Save/load
+    function save(){ localStorage.setItem('castle_proto_objects', JSON.stringify(objects)); localStorage.setItem('castle_proto_rules', JSON.stringify(rules)); log('Saved to localStorage'); }
+    function load(){ const o=localStorage.getItem('castle_proto_objects'); const r=localStorage.getItem('castle_proto_rules'); if(o){ objects = JSON.parse(o); } if(r){ rules = JSON.parse(r); } renderObjects(); refreshObjectSelectors(); renderRules(); log('Loaded from localStorage'); }
+
+    // UI wiring
+    document.getElementById('addObjBtn').addEventListener('click', ()=>{ addObject(document.getElementById('addType').value)});
+    document.getElementById('addRuleBtn').addEventListener('click', addRule);
+    document.getElementById('clearRulesBtn').addEventListener('click', ()=>{ rules=[]; renderRules(); });
+    document.getElementById('runBtn').addEventListener('click', run);
+    document.getElementById('stopBtn').addEventListener('click', stop);
+    document.getElementById('saveBtn').addEventListener('click', save);
+    document.getElementById('loadBtn').addEventListener('click', load);
+
+    // paramSelect change to show color picker when setColor is chosen
+    document.getElementById('actionSelect').addEventListener('change', (e)=>{
+      if(e.target.value==='setColor'){ colorInput.style.display='inline-block'; } else { colorInput.style.display='none'; }
+    });
+
+    // clicking empty canvas deselects
+    canvas.addEventListener('click', ()=>{ selected=null; updateSelectedLabel(); });
+
+    // init
+    renderObjects(); refreshObjectSelectors(); renderRules(); updateSelectedLabel();
+  </script>
+</body>
+</html>
+
