@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Castle: Make & Play — Prototype</title>
+  <title>Castle: Make & Play — Prototype (Single File)</title>
   <style>
     :root{
       --bg:#f7f9fc; --card:#ffffff; --muted:#9aa6b2; --accent:#8fc1ff; --accent-2:#ffd1e0;
-      --radius:12px; font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      --radius:12px; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
     }
     *{box-sizing:border-box}
     body{margin:0;background:linear-gradient(180deg,var(--bg),#eef6ff);color:#21323a}
@@ -18,42 +18,27 @@
     .container{display:grid;grid-template-columns:260px 1fr 360px;gap:18px;padding:18px}
     .panel{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:0 6px 18px rgba(25,40,60,.05)}
     .panel h3{margin:0 0 8px 0;font-size:15px}
-
-    /* Canvas */
+    .small{font-size:12px;color:var(--muted)}
     #canvas{background:linear-gradient(180deg,#ffffff,#f3fbff);min-height:580px;border-radius:10px;border:1px dashed rgba(0,0,0,.04);position:relative;overflow:hidden}
     .canvas-top{display:flex;justify-content:space-between;align-items:center;padding:12px}
-    .toolbar{display:flex;gap:8px}
-
-    /* Objects list */
     .obj-list{display:flex;flex-direction:column;gap:8px}
     .obj-item{padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,.04);display:flex;justify-content:space-between;align-items:center}
-
-    /* Rules */
     .rules{display:flex;flex-direction:column;gap:8px}
     .rule-card{padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,.04);background:linear-gradient(180deg,#ffffff,#fbfdff)}
     select,input{padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,.06);outline:none}
     .rule-row{display:flex;gap:8px;align-items:center}
-    .small{font-size:12px;color:var(--muted)}
-
-    /* Event palette */
     .palette-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:8px}
     .palette-swatch{width:100%;padding-top:100%;position:relative;border-radius:6px;cursor:pointer;border:2px solid transparent}
     .palette-swatch.selected{box-shadow:0 4px 10px rgba(0,0,0,.08);border:2px solid rgba(0,0,0,.08)}
-
-    /* Game objects on canvas */
-    .game-obj{position:absolute;padding:6px 8px;border-radius:8px;cursor:pointer;user-select:none}
-    .text-box{background:rgba(0,0,0,0.03);}
-    .rect{width:100px;height:60px;background:var(--accent);}
-
+    .game-obj{position:absolute;padding:6px 8px;border-radius:8px;cursor:pointer;user-select:none;transition:transform .08s linear}
+    .text-box{background:rgba(255,255,255,0.9);box-shadow:0 4px 8px rgba(20,40,60,.04);border:1px solid rgba(0,0,0,.03)}
     footer{padding:12px 22px;color:var(--muted);font-size:13px}
-
-    .muted{color:var(--muted)}
   </style>
 </head>
 <body>
   <header>
     <div class="logo">Castle — Prototype</div>
-    <div class="muted">Make & Play • Rule-based editor</div>
+    <div class="small">Make & Play • Rule-based editor</div>
     <div class="topnav">
       <button class="btn" id="saveBtn">Save</button>
       <button class="btn" id="loadBtn">Load</button>
@@ -71,7 +56,7 @@
           <option value="text">Text Box</option>
           <option value="rect">Rectangle</option>
           <option value="circle">Circle</option>
-          <option value="sprite">Sprite (image)</option>
+          <option value="sprite">Sprite (placeholder)</option>
         </select>
         <button class="btn" id="addObjBtn">Add</button>
       </div>
@@ -79,7 +64,7 @@
       <div class="obj-list" id="objectList"></div>
 
       <hr style="margin:12px 0;border:none;border-top:1px solid rgba(0,0,0,.04)" />
-      <div class="small">Tip: click an object on the canvas to select it for rules.</div>
+      <div class="small">Tip: click an object on the canvas to select it for rules (and click empty space to deselect).</div>
     </aside>
 
     <!-- Center: Canvas -->
@@ -171,248 +156,389 @@
 
           <div id="paletteContainer" style="margin-top:10px;display:none">
             <div class="small">DB32 Palette — click a color to select it for rules.</div>
-            <div id="paletteGrid" class="palette-grid"></div>
+            <div id="paletteGrid" class="palette-grid" aria-hidden="false"></div>
             <div class="small" style="margin-top:8px">Selected: <span id="selectedPaletteColor">none</span></div>
           </div>
 
-          <div class="small" style="margin-top:10px">When Hexed Code is active, color-picking is limited to the DB32 set to keep entries event-compliant.</div>
+          <div class="small" style="margin-top:10px">When Hexed Code is active, color-picking for <code>set color</code> rules is limited to the DB32 palette.</div>
         </div>
 
       </div>
 
       <hr style="margin:8px 0;border:none;border-top:1px solid rgba(0,0,0,.04)" />
-      <div class="small">Events: color palette challenges can be simulated by creating rules that set colors on created objects.</div>
+      <div class="small">Save uses localStorage. Load restores the last saved project.</div>
     </aside>
   </div>
 
-  <footer>Prototype — rule-based editor. Save/Load uses localStorage. Clicking an object selects it; use "When object clicked" to trigger actions.</footer>
+  <footer>Prototype — rule-based editor. Save/Load uses localStorage.</footer>
 
   <script>
-    // Simple prototype data stores
-    let objects = []; // {id, type, x, y, elId, props: {text,color}}
-    let rules = [];   // {id, trigger, targetId, action, param}
-    let selected = null; // selected object id
-    let running = false;
+    // Wrap in DOMContentLoaded to ensure elements exist
+    document.addEventListener('DOMContentLoaded', () => {
+      // Data stores
+      let objects = []; // {id, type, x, y, props:{text,color,visible}}
+      let rules = [];   // {id, trigger, targetId, action, param}
+      let selected = null;
+      let running = false;
 
-    // Hexed Code (DB32)
-    const DB32 = [
-      '#000000','#222034','#45283C','#663931','#8F563B','#DF7126','#D9A066','#EEC39A',
-      '#FBF236','#99E550','#6ABE30','#37946E','#4B692F','#524B24','#323C39','#3F3F74',
-      '#306082','#5B6EE1','#639BFF','#5FCDE4','#CBDBFC','#FFFFFF','#9BADB7','#847E87',
-      '#696A6A','#595652','#76428A','#AC3232','#D95763','#D77BBA','#8F974A','#8A6F30'
-    ];
-    let hexedActive = false;
-    let selectedPaletteColor = null;
+      // DB32 palette (Hexed Code)
+      const DB32 = [
+        '#000000','#222034','#45283C','#663931','#8F563B','#DF7126','#D9A066','#EEC39A',
+        '#FBF236','#99E550','#6ABE30','#37946E','#4B692F','#524B24','#323C39','#3F3F74',
+        '#306082','#5B6EE1','#639BFF','#5FCDE4','#CBDBFC','#FFFFFF','#9BADB7','#847E87',
+        '#696A6A','#595652','#76428A','#AC3232','#D95763','#D77BBA','#8F974A','#8A6F30'
+      ];
+      let hexedActive = false;
+      let selectedPaletteColor = null;
 
-    const canvas = document.getElementById('canvas');
-    const objectList = document.getElementById('objectList');
-    const rulesList = document.getElementById('rulesList');
-    const selectedLabel = document.getElementById('selectedLabel');
-    const targetSelect = document.getElementById('targetSelect');
-    const paramSelect = document.getElementById('paramSelect');
-    const colorInput = document.getElementById('colorInput');
-    const paletteContainer = document.getElementById('paletteContainer');
-    const paletteGrid = document.getElementById('paletteGrid');
-    const selectedPaletteLabel = document.getElementById('selectedPaletteColor');
-    const hexedToggle = document.getElementById('hexedToggle');
+      // Elements
+      const canvas = document.getElementById('canvas');
+      const objectList = document.getElementById('objectList');
+      const rulesList = document.getElementById('rulesList');
+      const selectedLabel = document.getElementById('selectedLabel');
+      const targetSelect = document.getElementById('targetSelect');
+      const paramSelect = document.getElementById('paramSelect');
+      const colorInput = document.getElementById('colorInput');
+      const paletteContainer = document.getElementById('paletteContainer');
+      const paletteGrid = document.getElementById('paletteGrid');
+      const selectedPaletteLabel = document.getElementById('selectedPaletteColor');
+      const hexedToggle = document.getElementById('hexedToggle');
 
-    function uid(prefix='id') { return prefix+Math.random().toString(36).slice(2,9)}
+      // util uid
+      function uid(prefix='id'){ return prefix + Math.random().toString(36).slice(2,9); }
 
-    function addObject(type){
-      const id = uid('obj_');
-      const obj = {id,type,x:40 + objects.length*20,y:40 + objects.length*20,props:{text:'Hello',color:'#ffd1e0'}};
-      objects.push(obj);
-      renderObjects();
-      refreshObjectSelectors();
-      log('Added '+type+' '+id);
-    }
+      // Logging to console area
+      function log(msg){
+        const c = document.getElementById('console');
+        const time = new Date().toLocaleTimeString();
+        c.innerText = `[${time}] ${msg}\n` + c.innerText;
+      }
 
-    function renderObjects(){
-      canvas.innerHTML = '';
-      objects.forEach(o => {
-        const el = document.createElement('div');
-        el.className = 'game-obj '+(o.type==='text'?'text-box':'');
-        el.id = o.id;
-        el.style.left = o.x+'px';
-        el.style.top = o.y+'px';
-        el.style.minWidth = 'auto';
-        el.style.padding = '8px 10px';
-        el.style.border = '1px solid rgba(0,0,0,.03)';
-        el.style.background = o.type==='rect'? o.props.color || 'var(--accent)' : 'transparent';
-        el.style.borderRadius = '8px';
-        el.style.cursor = 'pointer';
+      // Add object
+      function addObject(type){
+        const id = uid('obj_');
+        const defaultColor = '#ffd1e0';
+        const obj = { id, type, x: 40 + objects.length*18, y: 40 + objects.length*18, props: { text: 'Hello', color: defaultColor, visible: true } };
+        objects.push(obj);
+        refreshUI();
+        log(`Added ${type} (${id})`);
+      }
 
-        if(o.type==='text'){
-          el.innerText = o.props.text || 'Text';
-          el.classList.add('text-box');
-          el.style.background = 'rgba(255,255,255,0.9)';
-          el.style.boxShadow = '0 4px 8px rgba(20,40,60,.04)';
-        } else if(o.type==='rect'){
-          el.style.width = '120px'; el.style.height = '72px'; el.innerText = '';
-        } else if(o.type==='circle'){
-          el.style.width = '72px'; el.style.height = '72px'; el.style.borderRadius = '50%'; el.innerText = '';
-        } else if(o.type==='sprite'){
-          el.style.width = '64px'; el.style.height = '64px'; el.style.background = 'linear-gradient(90deg,#fff,#eee)'; el.innerText = '';
-        }
+      // Render objects on canvas
+      function renderObjects(){
+        canvas.innerHTML = '';
+        objects.forEach(o => {
+          const el = document.createElement('div');
+          el.className = 'game-obj ' + (o.type === 'text' ? 'text-box' : '');
+          el.id = o.id;
+          el.style.left = o.x + 'px';
+          el.style.top = o.y + 'px';
+          el.style.zIndex = 10;
+          el.style.minWidth = 'auto';
+          el.style.padding = '8px 10px';
+          el.style.border = '1px solid rgba(0,0,0,.03)';
+          el.style.borderRadius = '8px';
+          el.style.cursor = 'pointer';
+          el.style.userSelect = 'none';
+          el.style.transform = 'translateZ(0)';
 
-        // click selection
-        el.addEventListener('click', (ev)=>{ ev.stopPropagation(); selectObject(o.id)});
+          if(!o.props.visible) el.style.display = 'none';
 
-        // add listener for objectClicked trigger
-        el.addEventListener('click', ()=>{
-          if(running){ runTrigger('objectClicked', o.id); }
+          if(o.type === 'text'){
+            el.innerText = o.props.text || 'Text';
+          } else if(o.type === 'rect'){
+            el.style.width = '120px';
+            el.style.height = '72px';
+            el.style.background = o.props.color || 'var(--accent)';
+          } else if(o.type === 'circle'){
+            el.style.width = '72px';
+            el.style.height = '72px';
+            el.style.borderRadius = '50%';
+            el.style.background = o.props.color || '#ffd1e0';
+          } else if(o.type === 'sprite'){
+            el.style.width = '64px';
+            el.style.height = '64px';
+            el.style.background = 'linear-gradient(90deg,#fff,#eee)';
+            el.style.display = o.props.visible ? 'block' : 'none';
+          }
+
+          // click selection + run objectClicked if running
+          el.addEventListener('click', ev => {
+            ev.stopPropagation();
+            selectObject(o.id);
+            if(running) runTrigger('objectClicked', o.id);
+          });
+
+          // basic drag (click+move)
+          let dragging = false, dx=0, dy=0;
+          el.addEventListener('mousedown', ev => {
+            dragging = true;
+            dx = ev.clientX;
+            dy = ev.clientY;
+            el.style.transition = 'none';
+          });
+          window.addEventListener('mousemove', ev => {
+            if(!dragging) return;
+            const nx = o.x + (ev.clientX - dx);
+            const ny = o.y + (ev.clientY - dy);
+            o.x = Math.max(0, Math.min(canvas.clientWidth - 20, nx));
+            o.y = Math.max(0, Math.min(canvas.clientHeight - 20, ny));
+            dx = ev.clientX; dy = ev.clientY;
+            renderObjects(); // re-render position quickly
+          });
+          window.addEventListener('mouseup', ()=>{ if(dragging){ dragging=false; el.style.transition='transform .08s'; } });
+
+          canvas.appendChild(el);
         });
-
-        canvas.appendChild(el);
-      });
-    }
-
-    function refreshObjectSelectors(){
-      objectList.innerHTML = '';
-      // update targetSelect
-      targetSelect.innerHTML = '<option value="scene">Scene</option>' + objects.map(o=>`<option value="${o.id}">${o.type} — ${o.id}</option>`).join('');
-      // fill object list
-      objects.forEach(o=>{
-        const div = document.createElement('div');
-        div.className = 'obj-item';
-        div.innerHTML = `<div>${o.type} <span class="small">${o.id}</span></div><div><button class=\"btn\" data-id=\"${o.id}\">Delete</button></div>`;
-        objectList.appendChild(div);
-        div.querySelector('button').addEventListener('click', ()=>{ deleteObject(o.id)});
-      });
-    }
-
-    function deleteObject(id){ objects = objects.filter(o=>o.id!==id); renderObjects(); refreshObjectSelectors(); log('Deleted '+id); if(selected===id) { selected=null; updateSelectedLabel(); } }
-
-    function selectObject(id){ selected = id; updateSelectedLabel(); }
-    function updateSelectedLabel(){ selectedLabel.innerHTML = 'Selected: <em>' + (selected||'none') + '</em>'; }
-
-    function addRule(){
-      const trigger = document.getElementById('triggerSelect').value;
-      const targetId = document.getElementById('targetSelect').value;
-      const action = document.getElementById('actionSelect').value;
-      let param = document.getElementById('paramSelect').value;
-      if(param === 'CUSTOM'){
-        param = prompt('Enter custom text for param:','Hello') || 'Hello';
       }
-      // If setColor and Hexed Code active, enforce palette selection
-      if(action === 'setColor'){
-        if(hexedActive){
-          if(!selectedPaletteColor){ alert('Hexed Code is active: pick a palette color before adding a setColor rule.'); return; }
-          param = selectedPaletteColor;
-        } else {
-          // if color input visible use its value
-          param = colorInput.value || param;
+
+      // refresh object list and selectors
+      function refreshObjectSelectors(){
+        objectList.innerHTML = '';
+        targetSelect.innerHTML = '<option value="scene">Scene</option>' + objects.map(o => `<option value="${o.id}">${o.type} — ${o.id}</option>`).join('');
+        objects.forEach(o=>{
+          const div = document.createElement('div');
+          div.className = 'obj-item';
+          div.innerHTML = `<div>${o.type} <span class="small">${o.id}</span></div><div><button class="btn" data-id="${o.id}">Delete</button></div>`;
+          objectList.appendChild(div);
+          div.querySelector('button').addEventListener('click', ()=>{ deleteObject(o.id); });
+        });
+      }
+
+      function deleteObject(id){
+        objects = objects.filter(o=>o.id !== id);
+        if(selected === id) selected = null;
+        refreshUI();
+        log(`Deleted ${id}`);
+      }
+
+      function selectObject(id){
+        selected = id;
+        selectedLabel.innerHTML = 'Selected: <em>' + (selected || 'none') + '</em>';
+      }
+
+      function updateSelectedLabel(){ selectedLabel.innerHTML = 'Selected: <em>' + (selected || 'none') + '</em>'; }
+
+      // Rules
+      function addRule(){
+        const trigger = document.getElementById('triggerSelect').value;
+        const targetId = targetSelect.value;
+        const action = document.getElementById('actionSelect').value;
+        let param = document.getElementById('paramSelect').value;
+
+        if(param === 'CUSTOM'){
+          param = prompt('Enter custom text for param:', 'Hello') || 'Hello';
+        }
+        if(action === 'setColor'){
+          if(hexedActive){
+            if(!selectedPaletteColor){
+              alert('Hexed Code is active: pick a DB32 color before adding a setColor rule.');
+              return;
+            }
+            param = selectedPaletteColor;
+          } else {
+            // use color input if available
+            param = colorInput.value || param;
+          }
+        }
+
+        const rule = { id: uid('rule_'), trigger, targetId, action, param };
+        rules.push(rule);
+        renderRules();
+        log(`Added rule (${rule.id})`);
+      }
+
+      function renderRules(){
+        rulesList.innerHTML = '';
+        rules.forEach(r=>{
+          const el = document.createElement('div');
+          el.className = 'rule-card';
+          el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+            <div><strong>${humanize(r.trigger)}</strong> → <em>${humanizeAction(r.action)}</em></div>
+            <div><button class="btn" data-id="${r.id}">Del</button></div>
+          </div><div class="small">target: ${r.targetId} • param: ${r.param}</div>`;
+          rulesList.appendChild(el);
+          el.querySelector('button').addEventListener('click', ()=>{ rules = rules.filter(x=>x.id !== r.id); renderRules(); });
+        });
+      }
+
+      function humanize(s){
+        return s.replace(/([A-Z])/g, ' $1').replace(/^./, str=>str.toUpperCase());
+      }
+      function humanizeAction(a){
+        return a.replace(/([A-Z])/g, ' $1').replace(/^./, str=>str.toUpperCase());
+      }
+
+      // Execution
+      function run(){
+        running = true;
+        log('Running...');
+        // sceneCreated
+        rules.filter(r=>r.trigger === 'sceneCreated').forEach(r => executeAction(r));
+        // objectCreated triggers for each existing object
+        objects.forEach(o=>{
+          rules.filter(r => r.trigger === 'objectCreated' && (r.targetId === 'scene' || r.targetId === o.id)).forEach(r => executeAction(r, o));
+        });
+      }
+
+      function stop(){
+        running = false;
+        log('Stopped');
+      }
+
+      function runTrigger(triggerName, targetObjId){
+        rules.filter(r => r.trigger === triggerName && (r.targetId === 'scene' || r.targetId === targetObjId)).forEach(r => executeAction(r));
+      }
+
+      function executeAction(rule){
+        const { action, param, targetId } = rule;
+        log(`Action: ${action} param:${param} target:${targetId}`);
+        if(action === 'createText'){
+          const id = uid('obj_');
+          const obj = { id, type: 'text', x: 50, y: 50, props: { text: param || 'Hello', color: '#ffffff', visible: true } };
+          objects.push(obj);
+          refreshUI();
+        } else if(action === 'createRect'){
+          const id = uid('obj_');
+          const obj = { id, type: 'rect', x: 60, y: 60, props: { color: param || '#8fc1ff', visible: true } };
+          objects.push(obj);
+          refreshUI();
+        } else if(action === 'createCircle'){
+          const id = uid('obj_');
+          const obj = { id, type: 'circle', x: 80, y: 80, props: { color: param || '#ffd1e0', visible: true } };
+          objects.push(obj);
+          refreshUI();
+        } else if(action === 'setColor'){
+          const target = objects.find(o => o.id === targetId);
+          if(target){
+            target.props.color = param;
+            // If it's a text object, we don't change text color by default — but rect/circle use background
+            refreshUI();
+          } else {
+            log(`setColor: target ${targetId} not found`);
+          }
+        } else if(action === 'show'){
+          const target = objects.find(o => o.id === targetId);
+          if(target){ target.props.visible = true; refreshUI(); }
+        } else if(action === 'hide'){
+          const target = objects.find(o => o.id === targetId);
+          if(target){ target.props.visible = false; refreshUI(); }
         }
       }
-      const r = {id:uid('rule_'), trigger, targetId, action, param};
-      rules.push(r); renderRules(); log('Added rule '+r.id);
-    }
 
-    function renderRules(){
-      rulesList.innerHTML = '';
-      rules.forEach(r=>{
-        const el = document.createElement('div'); el.className='rule-card';
-        el.innerHTML = `<div style=\"display:flex;justify-content:space-between;align-items:center\"><div><strong>${r.trigger}</strong> → <em>${r.action}</em></div><div><button class=\"btn\" data-id=\"${r.id}\">Del</button></div></div><div class=\"small\">target: ${r.targetId} • param: ${r.param}</div>`;
-        rulesList.appendChild(el);
-        el.querySelector('button').addEventListener('click', ()=>{ rules = rules.filter(x=>x.id!==r.id); renderRules(); })
-      });
-    }
-
-    function run(){
-      running = true; log('Running...');
-      // run sceneCreated triggers
-      rules.filter(r=>r.trigger==='sceneCreated').forEach(r => executeAction(r.action, r.param, r.targetId));
-      // run objectCreated triggers for objects that exist
-      objects.forEach(o=>{
-        rules.filter(r=>r.trigger==='objectCreated' && (r.targetId==='scene' || r.targetId===o.id)).forEach(r=>executeAction(r.action, r.param, r.targetId));
-      });
-    }
-
-    function stop(){ running = false; log('Stopped'); }
-
-    function runTrigger(triggerName, targetObjId){
-      rules.filter(r=>r.trigger===triggerName && (r.targetId==='scene' || r.targetId===targetObjId)).forEach(r=>executeAction(r.action, r.param, r.targetId));
-    }
-
-    function executeAction(action, param, targetId){
-      log('Action: '+action+' param:'+param+' target:'+targetId);
-      if(action==='createText'){
-        const id = uid('obj_');
-        const obj = {id,type:'text',x:50,y:50,props:{text:param,color:'#fff'}};
-        objects.push(obj); renderObjects(); refreshObjectSelectors();
-      } else if(action==='createRect'){
-        const id = uid('obj_');
-        const obj = {id,type:'rect',x:60,y:60,props:{color:param||'#8fc1ff'}};
-        objects.push(obj); renderObjects(); refreshObjectSelectors();
-      } else if(action==='createCircle'){
-        const id = uid('obj_');
-        const obj = {id,type:'circle',x:80,y:80,props:{color:param||'#ffd1e0'}};
-        objects.push(obj); renderObjects(); refreshObjectSelectors();
-      } else if(action==='setColor'){
-        // set color on target
-        const target = objects.find(o=>o.id===targetId);
-        if(target){ target.props.color = param; renderObjects(); }
-      } else if(action==='show'){
-        const target = objects.find(o=>o.id===targetId); if(target){ /* nothing for now */ }
-      } else if(action==='hide'){
-        const target = objects.find(o=>o.id===targetId); if(target){ /* nothing for now */ }
+      // Save / Load (localStorage)
+      function save(){
+        const payload = { objects, rules, hexedActive, selectedPaletteColor };
+        try {
+          localStorage.setItem('castle_proto_v3', JSON.stringify(payload));
+          log('Saved to localStorage (castle_proto_v3).');
+        } catch (e) {
+          log('Save failed: ' + e.message);
+        }
       }
-    }
 
-    function log(msg){ const c = document.getElementById('console'); c.innerText = msg + '
-' + c.innerText; }
+      function load(){
+        try {
+          const raw = localStorage.getItem('castle_proto_v3');
+          if(!raw){ log('No saved project found.'); return; }
+          const p = JSON.parse(raw);
+          objects = p.objects || [];
+          rules = p.rules || [];
+          hexedActive = !!p.hexedActive;
+          selectedPaletteColor = p.selectedPaletteColor || null;
+          hexedToggle.checked = hexedActive;
+          if(hexedActive) paletteContainer.style.display = 'block';
+          renderPalette();
+          refreshUI();
+          renderRules();
+          updatePaletteUI();
+          log('Loaded project from localStorage.');
+        } catch(e){
+          log('Load failed: ' + e.message);
+        }
+      }
 
-    // Save/load
-    function save(){
-      const payload = {objects, rules, hexedActive, selectedPaletteColor};
-      localStorage.setItem('castle_proto_v2', JSON.stringify(payload));
-      log('Saved to localStorage');
-    }
-    function load(){ const raw = localStorage.getItem('castle_proto_v2'); if(raw){ const p = JSON.parse(raw); objects=p.objects||[]; rules=p.rules||[]; hexedActive=!!p.hexedActive; selectedPaletteColor=p.selectedPaletteColor||null; hexedToggle.checked = hexedActive; renderPalette(); renderObjects(); refreshObjectSelectors(); renderRules(); updatePaletteUI(); log('Loaded from localStorage'); } else { log('No saved project found'); } }
+      // Palette rendering
+      function renderPalette(){
+        paletteGrid.innerHTML = '';
+        DB32.forEach(col => {
+          const sw = document.createElement('div');
+          sw.className = 'palette-swatch';
+          sw.style.background = col;
+          sw.dataset.color = col;
+          sw.addEventListener('click', ()=>{ selectedPaletteColor = col; updatePaletteUI(); });
+          // create inner absolute to keep square aspect
+          const inner = document.createElement('div');
+          inner.style.position = 'absolute'; inner.style.top = 0; inner.style.left = 0; inner.style.right = 0; inner.style.bottom = 0;
+          inner.style.borderRadius = '6px';
+          sw.appendChild(inner);
+          paletteGrid.appendChild(sw);
+        });
+        updatePaletteUI();
+      }
 
-    // UI wiring
-    document.getElementById('addObjBtn').addEventListener('click', ()=>{ addObject(document.getElementById('addType').value)});
-    document.getElementById('addRuleBtn').addEventListener('click', addRule);
-    document.getElementById('clearRulesBtn').addEventListener('click', ()=>{ rules=[]; renderRules(); });
-    document.getElementById('runBtn').addEventListener('click', run);
-    document.getElementById('stopBtn').addEventListener('click', stop);
-    document.getElementById('saveBtn').addEventListener('click', save);
-    document.getElementById('loadBtn').addEventListener('click', load);
+      function updatePaletteUI(){
+        Array.from(paletteGrid.children).forEach(sw=>{
+          if(sw.dataset.color === selectedPaletteColor) sw.classList.add('selected'); else sw.classList.remove('selected');
+        });
+        selectedPaletteLabel.innerText = selectedPaletteColor || 'none';
+      }
 
-    // paramSelect change to show color picker when setColor is chosen
-    document.getElementById('actionSelect').addEventListener('change', (e)=>{
-      if(e.target.value==='setColor'){
-        // show color controls depending on event
-        if(hexedActive){ paletteContainer.style.display='block'; colorInput.style.display='none'; } else { colorInput.style.display='inline-block'; paletteContainer.style.display='none'; }
-      } else { colorInput.style.display='none'; paletteContainer.style.display='none'; }
+      // UI wiring + helpers
+      function refreshUI(){
+        renderObjects();
+        refreshObjectSelectors();
+        updateSelectedLabel();
+        renderRules();
+      }
+
+      // DOM event handlers
+      document.getElementById('addObjBtn').addEventListener('click', ()=> addObject(document.getElementById('addType').value));
+      document.getElementById('addRuleBtn').addEventListener('click', addRule);
+      document.getElementById('clearRulesBtn').addEventListener('click', ()=> { rules = []; renderRules(); });
+      document.getElementById('runBtn').addEventListener('click', run);
+      document.getElementById('stopBtn').addEventListener('click', stop);
+      document.getElementById('saveBtn').addEventListener('click', save);
+      document.getElementById('loadBtn').addEventListener('click', load);
+
+      // show/hide color control based on actionSelect
+      document.getElementById('actionSelect').addEventListener('change', e => {
+        if(e.target.value === 'setColor'){
+          if(hexedActive){
+            paletteContainer.style.display = 'block';
+            colorInput.style.display = 'none';
+          } else {
+            paletteContainer.style.display = 'none';
+            colorInput.style.display = 'inline-block';
+          }
+        } else {
+          paletteContainer.style.display = 'none';
+          colorInput.style.display = 'none';
+        }
+      });
+
+      // canvas click deselects
+      canvas.addEventListener('click', ()=> { selected = null; updateSelectedLabel(); });
+
+      // hexed toggle
+      hexedToggle.addEventListener('change', e => {
+        hexedActive = !!e.target.checked;
+        if(hexedActive){
+          paletteContainer.style.display = 'block';
+          colorInput.style.display = 'none';
+        } else {
+          paletteContainer.style.display = 'none';
+          colorInput.style.display = 'none';
+          selectedPaletteColor = null;
+        }
+        updatePaletteUI();
+      });
+
+      // init
+      renderPalette();
+      refreshUI();
+      log('Prototype ready. Add objects, create rules, and press Run.');
     });
-
-    // clicking empty canvas deselects
-    canvas.addEventListener('click', ()=>{ selected=null; updateSelectedLabel(); });
-
-    // Hexed toggle
-    hexedToggle.addEventListener('change', (e)=>{ hexedActive = e.target.checked; if(hexedActive){ paletteContainer.style.display='block'; colorInput.style.display='none'; } else { paletteContainer.style.display='none'; colorInput.style.display='none'; selectedPaletteColor=null; } updatePaletteUI(); });
-
-    function renderPalette(){
-      paletteGrid.innerHTML = '';
-      DB32.forEach(col=>{
-        const sw = document.createElement('div'); sw.className='palette-swatch'; sw.style.background = col; sw.dataset.color = col;
-        sw.addEventListener('click', ()=>{ selectedPaletteColor = col; updatePaletteUI(); });
-        const inner = document.createElement('div'); inner.style.position='absolute'; inner.style.top='0'; inner.style.right='0'; inner.style.bottom='0'; inner.style.left='0'; inner.style.borderRadius='6px'; sw.appendChild(inner);
-        paletteGrid.appendChild(sw);
-      });
-      updatePaletteUI();
-    }
-
-    function updatePaletteUI(){
-      Array.from(paletteGrid.children).forEach(sw=>{
-        if(sw.dataset.color === selectedPaletteColor){ sw.classList.add('selected'); } else { sw.classList.remove('selected'); }
-      });
-      selectedPaletteLabel.innerText = selectedPaletteColor || 'none';
-    }
-
-    // init
-    renderObjects(); refreshObjectSelectors(); renderRules(); updateSelectedLabel(); renderPalette();
   </script>
 </body>
 </html>
