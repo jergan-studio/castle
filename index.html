@@ -15,7 +15,7 @@
     .logo{background:var(--card);padding:10px 14px;border-radius:10px;box-shadow:0 6px 14px rgba(34,50,80,.06);font-weight:700}
     .topnav{margin-left:auto;display:flex;gap:10px}
     .btn{background:var(--card);border-radius:10px;padding:8px 12px;border:1px solid rgba(0,0,0,.04);cursor:pointer}
-    .container{display:grid;grid-template-columns:260px 1fr 320px;gap:18px;padding:18px}
+    .container{display:grid;grid-template-columns:260px 1fr 360px;gap:18px;padding:18px}
     .panel{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:0 6px 18px rgba(25,40,60,.05)}
     .panel h3{margin:0 0 8px 0;font-size:15px}
 
@@ -34,6 +34,11 @@
     select,input{padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,.06);outline:none}
     .rule-row{display:flex;gap:8px;align-items:center}
     .small{font-size:12px;color:var(--muted)}
+
+    /* Event palette */
+    .palette-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:8px}
+    .palette-swatch{width:100%;padding-top:100%;position:relative;border-radius:6px;cursor:pointer;border:2px solid transparent}
+    .palette-swatch.selected{box-shadow:0 4px 10px rgba(0,0,0,.08);border:2px solid rgba(0,0,0,.08)}
 
     /* Game objects on canvas */
     .game-obj{position:absolute;padding:6px 8px;border-radius:8px;cursor:pointer;user-select:none}
@@ -97,7 +102,7 @@
       </div>
     </main>
 
-    <!-- Right: Rules -->
+    <!-- Right: Rules + Events -->
     <aside class="panel">
       <h3>Rules</h3>
       <div style="display:flex;flex-direction:column;gap:8px">
@@ -147,6 +152,32 @@
         </div>
 
         <div id="rulesList" class="rules"></div>
+
+        <hr style="margin:8px 0;border:none;border-top:1px solid rgba(0,0,0,.04)" />
+
+        <h3>Events</h3>
+        <div class="rule-card">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <strong>Hexed Code</strong>
+              <div class="small">Halloween — uses DB32 palette</div>
+            </div>
+            <div>
+              <label class="small" style="display:block;text-align:right">Active
+                <input type="checkbox" id="hexedToggle" style="margin-left:8px" />
+              </label>
+            </div>
+          </div>
+
+          <div id="paletteContainer" style="margin-top:10px;display:none">
+            <div class="small">DB32 Palette — click a color to select it for rules.</div>
+            <div id="paletteGrid" class="palette-grid"></div>
+            <div class="small" style="margin-top:8px">Selected: <span id="selectedPaletteColor">none</span></div>
+          </div>
+
+          <div class="small" style="margin-top:10px">When Hexed Code is active, color-picking is limited to the DB32 set to keep entries event-compliant.</div>
+        </div>
+
       </div>
 
       <hr style="margin:8px 0;border:none;border-top:1px solid rgba(0,0,0,.04)" />
@@ -163,6 +194,16 @@
     let selected = null; // selected object id
     let running = false;
 
+    // Hexed Code (DB32)
+    const DB32 = [
+      '#000000','#222034','#45283C','#663931','#8F563B','#DF7126','#D9A066','#EEC39A',
+      '#FBF236','#99E550','#6ABE30','#37946E','#4B692F','#524B24','#323C39','#3F3F74',
+      '#306082','#5B6EE1','#639BFF','#5FCDE4','#CBDBFC','#FFFFFF','#9BADB7','#847E87',
+      '#696A6A','#595652','#76428A','#AC3232','#D95763','#D77BBA','#8F974A','#8A6F30'
+    ];
+    let hexedActive = false;
+    let selectedPaletteColor = null;
+
     const canvas = document.getElementById('canvas');
     const objectList = document.getElementById('objectList');
     const rulesList = document.getElementById('rulesList');
@@ -170,6 +211,10 @@
     const targetSelect = document.getElementById('targetSelect');
     const paramSelect = document.getElementById('paramSelect');
     const colorInput = document.getElementById('colorInput');
+    const paletteContainer = document.getElementById('paletteContainer');
+    const paletteGrid = document.getElementById('paletteGrid');
+    const selectedPaletteLabel = document.getElementById('selectedPaletteColor');
+    const hexedToggle = document.getElementById('hexedToggle');
 
     function uid(prefix='id') { return prefix+Math.random().toString(36).slice(2,9)}
 
@@ -249,8 +294,15 @@
       if(param === 'CUSTOM'){
         param = prompt('Enter custom text for param:','Hello') || 'Hello';
       }
+      // If setColor and Hexed Code active, enforce palette selection
       if(action === 'setColor'){
-        param = colorInput.value;
+        if(hexedActive){
+          if(!selectedPaletteColor){ alert('Hexed Code is active: pick a palette color before adding a setColor rule.'); return; }
+          param = selectedPaletteColor;
+        } else {
+          // if color input visible use its value
+          param = colorInput.value || param;
+        }
       }
       const r = {id:uid('rule_'), trigger, targetId, action, param};
       rules.push(r); renderRules(); log('Added rule '+r.id);
@@ -307,11 +359,16 @@
       }
     }
 
-    function log(msg){ const c = document.getElementById('console'); c.innerText = msg + '\n' + c.innerText; }
+    function log(msg){ const c = document.getElementById('console'); c.innerText = msg + '
+' + c.innerText; }
 
     // Save/load
-    function save(){ localStorage.setItem('castle_proto_objects', JSON.stringify(objects)); localStorage.setItem('castle_proto_rules', JSON.stringify(rules)); log('Saved to localStorage'); }
-    function load(){ const o=localStorage.getItem('castle_proto_objects'); const r=localStorage.getItem('castle_proto_rules'); if(o){ objects = JSON.parse(o); } if(r){ rules = JSON.parse(r); } renderObjects(); refreshObjectSelectors(); renderRules(); log('Loaded from localStorage'); }
+    function save(){
+      const payload = {objects, rules, hexedActive, selectedPaletteColor};
+      localStorage.setItem('castle_proto_v2', JSON.stringify(payload));
+      log('Saved to localStorage');
+    }
+    function load(){ const raw = localStorage.getItem('castle_proto_v2'); if(raw){ const p = JSON.parse(raw); objects=p.objects||[]; rules=p.rules||[]; hexedActive=!!p.hexedActive; selectedPaletteColor=p.selectedPaletteColor||null; hexedToggle.checked = hexedActive; renderPalette(); renderObjects(); refreshObjectSelectors(); renderRules(); updatePaletteUI(); log('Loaded from localStorage'); } else { log('No saved project found'); } }
 
     // UI wiring
     document.getElementById('addObjBtn').addEventListener('click', ()=>{ addObject(document.getElementById('addType').value)});
@@ -324,15 +381,38 @@
 
     // paramSelect change to show color picker when setColor is chosen
     document.getElementById('actionSelect').addEventListener('change', (e)=>{
-      if(e.target.value==='setColor'){ colorInput.style.display='inline-block'; } else { colorInput.style.display='none'; }
+      if(e.target.value==='setColor'){
+        // show color controls depending on event
+        if(hexedActive){ paletteContainer.style.display='block'; colorInput.style.display='none'; } else { colorInput.style.display='inline-block'; paletteContainer.style.display='none'; }
+      } else { colorInput.style.display='none'; paletteContainer.style.display='none'; }
     });
 
     // clicking empty canvas deselects
     canvas.addEventListener('click', ()=>{ selected=null; updateSelectedLabel(); });
 
+    // Hexed toggle
+    hexedToggle.addEventListener('change', (e)=>{ hexedActive = e.target.checked; if(hexedActive){ paletteContainer.style.display='block'; colorInput.style.display='none'; } else { paletteContainer.style.display='none'; colorInput.style.display='none'; selectedPaletteColor=null; } updatePaletteUI(); });
+
+    function renderPalette(){
+      paletteGrid.innerHTML = '';
+      DB32.forEach(col=>{
+        const sw = document.createElement('div'); sw.className='palette-swatch'; sw.style.background = col; sw.dataset.color = col;
+        sw.addEventListener('click', ()=>{ selectedPaletteColor = col; updatePaletteUI(); });
+        const inner = document.createElement('div'); inner.style.position='absolute'; inner.style.top='0'; inner.style.right='0'; inner.style.bottom='0'; inner.style.left='0'; inner.style.borderRadius='6px'; sw.appendChild(inner);
+        paletteGrid.appendChild(sw);
+      });
+      updatePaletteUI();
+    }
+
+    function updatePaletteUI(){
+      Array.from(paletteGrid.children).forEach(sw=>{
+        if(sw.dataset.color === selectedPaletteColor){ sw.classList.add('selected'); } else { sw.classList.remove('selected'); }
+      });
+      selectedPaletteLabel.innerText = selectedPaletteColor || 'none';
+    }
+
     // init
-    renderObjects(); refreshObjectSelectors(); renderRules(); updateSelectedLabel();
+    renderObjects(); refreshObjectSelectors(); renderRules(); updateSelectedLabel(); renderPalette();
   </script>
 </body>
 </html>
-
